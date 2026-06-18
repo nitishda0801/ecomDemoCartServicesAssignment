@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NitiKart E-Commerce App</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+<nav class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-50">
+    <div class="container mx-auto flex justify-between items-center">
+        <h1 class="text-2xl font-bold tracking-wide">NitiKart E-Shop</h1>
+        <div class="space-x-4">
+            <button onclick="switchView('products-view')" class="hover:underline cursor-pointer">Products</button>
+            <button onclick="switchView('cart-view'); loadCart();" class="hover:underline cursor-pointer font-semibold">
+                Cart 🛒
+            </button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mx-auto p-6 max-w-6xl">
+
+    <section id="products-view" class="view-section">
+        <h2 class="text-2xl font-bold mb-6 text-gray-800">Available Products</h2>
+        <div id="product-list" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        </div>
+    </section>
+
+    <section id="cart-view" class="view-section hidden">
+        <h2 class="text-2xl font-bold mb-6 text-gray-800">Your Shopping Cart</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-md">
+                <div id="cart-items" class="space-y-4 divide-y divide-gray-100">
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-md h-fit">
+                <h3 class="text-xl font-bold mb-4 border-b pb-2 text-gray-700">Order Summary</h3>
+                <div class="flex justify-between items-center text-lg mb-6">
+                    <span class="font-medium text-gray-600">Total Amount:</span>
+                    <span id="order-total" class="font-bold text-xl text-blue-600">$0.00</span>
+                </div>
+                <button id="checkout-btn" onclick="processCheckout()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow transition duration-200 cursor-pointer mb-3">
+                    Proceed to Checkout
+                </button>
+                <button id="pay-btn" onclick="processPayment()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow transition duration-200 cursor-pointer hidden">
+                    Pay Now (Mock)
+                </button>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+    const API_BASE = '/api';
+
+    // Initialize application
+    document.addEventListener('DOMContentLoaded', () => {
+        loadProducts();
+    });
+
+    // View Toggler
+    function switchView(viewId) {
+        document.querySelectorAll('.view-section').forEach(section => section.classList.add('hidden'));
+        document.getElementById(viewId).classList.remove('hidden');
+    }
+
+    // Fetch & Render Products
+    async function loadProducts() {
+        try {
+            const response = await fetch(`${API_BASE}/products`);
+            const products = await response.json();
+            const container = document.getElementById('product-list');
+
+            container.innerHTML = products.map(product => `
+                <div class="bg-white p-6 rounded-lg shadow-md border border-gray-100 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">${product.name}</h3>
+                        <p class="text-gray-500 mb-4">Stock Available: <span class="font-semibold text-gray-700">${product.stock}</span></p>
+                    </div>
+                    <div class="flex justify-between items-center mt-4">
+                        <span class="text-2xl font-extrabold text-blue-600">$${product.price.toFixed(2)}</span>
+                        <button onclick="addToCart(${product.id})" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow transition duration-150 cursor-pointer">
+                            Add to Cart
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (err) {
+            alert('Error loading products');
+        }
+    }
+
+    // Add to Cart Trigger
+    async function addToCart(productId) {
+        try {
+            const response = await fetch(`${API_BASE}/cart/add?productId=${productId}&quantity=1`, { method: 'POST' });
+            if (!response.ok) throw new Error(await response.text() || 'Out of stock');
+            alert('Product added to cart!');
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
+    // Fetch & Render Cart
+    async function loadCart() {
+        try {
+            const response = await fetch(`${API_BASE}/cart`);
+            const cartItems = await response.json();
+            const container = document.getElementById('cart-items');
+
+            // Reset standard UI states
+            document.getElementById('checkout-btn').classList.remove('hidden');
+            document.getElementById('pay-btn').classList.add('hidden');
+
+            if (cartItems.length === 0) {
+                container.innerHTML = `<p class="text-gray-500 py-4 text-center">Your cart is empty.</p>`;
+                document.getElementById('order-total').innerText = '$0.00';
+                return;
+            }
+
+            let runningTotal = 0;
+            container.innerHTML = cartItems.map(item => {
+                const itemTotal = item.product.price * item.quantity;
+                runningTotal += itemTotal;
+                return `
+                    <div class="flex justify-between items-center py-4">
+                        <div>
+                            <h4 class="text-lg font-bold text-gray-800">${item.product.name}</h4>
+                            <p class="text-sm text-gray-500">Price: $${item.product.price.toFixed(2)}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="block font-semibold text-gray-700">Qty: ${item.quantity}</span>
+                            <span class="text-sm text-blue-600 font-bold">$${itemTotal.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('order-total').innerText = `$${runningTotal.toFixed(2)}`;
+        } catch (err) {
+            container.innerHTML = `<p class="text-red-500">Failed to load cart elements.</p>`;
+        }
+    }
+
+    // Checkout State Trigger
+    async function processCheckout() {
+        try {
+            const response = await fetch(`${API_BASE}/checkout`);
+            if (!response.ok) throw new Error('Checkout failure.');
+            const summary = await response.json();
+
+            // Swap buttons to state Checkout -> Pay Now
+            document.getElementById('checkout-btn').classList.add('hidden');
+            document.getElementById('pay-btn').classList.remove('hidden');
+
+            alert(`Order reviewed. Grand Total: $${summary.totalAmount.toFixed(2)}. Please click Pay Now.`);
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+
+    // Final Pay Trigger
+    async function processPayment() {
+        try {
+            const response = await fetch(`${API_BASE}/pay`, { method: 'POST' });
+            const msg = await response.text();
+
+            if (!response.ok) throw new Error(msg);
+
+            alert(msg);
+            // Reset views and tables back to product catalogue
+            loadProducts();
+            switchView('products-view');
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+</script>
+</body>
+</html>
